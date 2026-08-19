@@ -1,0 +1,3 @@
+# Compatibility pointer for managed updaters released before the uv migration.
+# Direct dependencies belong only in pyproject.toml.
+-r requirements-runtime.lock

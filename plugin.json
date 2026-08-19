@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ouroboros-self-improve",
+  "version": "1.0.0",
+  "description": "Portable lite and source-faithful full extractions of Ouroboros self-improvement: reflection, learning backlog, promotion, reviewed evolution, mutation, restart verification, owner/budget gates, and review safety machinery.",
+  "author": {
+    "name": "megamen32",
+    "url": "https://github.com/megamen32"
+  },
+  "homepage": "https://github.com/megamen32/ouroboros-self-improve-plugin",
+  "repository": "https://github.com/megamen32/ouroboros-self-improve-plugin",
+  "license": "MIT",
+  "keywords": ["ouroboros", "self-improvement", "evolution", "reflection", "agent", "review", "learning"]
+}

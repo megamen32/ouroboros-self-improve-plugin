@@ -1,0 +1,145 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ouroboros"
+version = "6.100.0"
+description = "Self-creating AI agent with constitution, background consciousness, and persistent identity"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Anton Razzhigaev"},
+]
+keywords = ["ai-agent", "self-modifying", "autonomous", "llm", "openrouter"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "openai>=1.66.0",
+    "gigachat>=0.2.1,<0.3",
+    "requests",
+    # Runtime self-update and install paths execute ``sys.executable -m pip``.
+    # uv-created source/tool environments do not seed pip unless it is declared.
+    "pip",
+    "httpx",
+    "ddgs",
+    "dulwich",
+    "huggingface_hub",
+    "starlette",
+    "python-multipart",
+    "Pillow>=10.0",
+    "pypdf>=4.0",
+    "uvicorn[standard]",
+    "websockets",
+    "pytest>=7.0",
+    # Runtime, not test-only: the hermetic commit gate's parallel pass hard-blocks
+    # with PREFLIGHT_PLUGIN_MISSING rather than degrading to serial, so a wheel /
+    # `pip install .` that carries pytest without these cannot commit at all.
+    # Floors kept in step with _REQUIRED_PREFLIGHT_PLUGINS. These remain runtime
+    # dependencies because the packaged hermetic commit gate invokes them.
+    "pytest-xdist>=3.5",
+    "pytest-timeout>=2.1",
+    "claude-agent-sdk>=0.1.60",
+    "mcp>=1.6,<2.0",
+    "PyYAML>=6.0",
+    "croniter",
+    # Upper-bounded: tree-sitter 0.25.x + language-pack 1.x changed the grammar/
+    # node-type behavior so the WS3 polyglot symbol extraction returned nothing
+    # (green locally on 0.23.2/0.9.1, red in CI which pulled the latest). Pin to
+    # the verified-working line until code_intelligence is updated for the new API.
+    "tree-sitter>=0.23.2,<0.25",
+    "tree-sitter-language-pack>=0.9.1,<1.0",
+    "tzdata",
+    # Python 3.10 needs typing_extensions.NotRequired for gateway contracts.
+    "typing_extensions>=4.5.0",
+]
+
+[project.scripts]
+ouroboros = "ouroboros.cli:main"
+ouroboros-web = "server:main"
+
+[project.urls]
+Homepage = "https://github.com/razzant/ouroboros"
+Repository = "https://github.com/razzant/ouroboros"
+Issues = "https://github.com/razzant/ouroboros/issues"
+"Previous Version (Colab)" = "https://github.com/razzant/ouroboros/tree/legacy-google-colab"
+
+[project.optional-dependencies]
+claude-sdk = ["claude-agent-sdk>=0.1.60"]
+browser = ["playwright", "playwright-stealth"]
+desktop = [
+    "pywebview==5.4",
+    "pythonnet==3.0.5; platform_system == 'Windows'",
+    "clr_loader==0.2.7.post0; platform_system == 'Windows'",
+]
+local-model = ["llama-cpp-python"]
+build = ["pyinstaller>=6.0"]
+all = [
+    "claude-agent-sdk>=0.1.60",
+    "playwright",
+    "playwright-stealth",
+    "pywebview==5.4",
+    "pythonnet==3.0.5; platform_system == 'Windows'",
+    "clr_loader==0.2.7.post0; platform_system == 'Windows'",
+    "llama-cpp-python",
+    "huggingface_hub",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.12"]
+
+[tool.uv]
+required-version = "==0.12.1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+# Default local pytest excludes token-burning integration/browser suites.
+addopts = "-q --tb=short -m 'not integration and not browser and not ui_browser and not ui_browser_docker and not portable_detail and not skill_smoke'"
+markers = [
+    "integration: requires real provider API keys (OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / CLOUDRU_FOUNDATION_MODELS_API_KEY); excluded from default local runs, opt in via `pytest -m integration`",
+    "browser: launches real Playwright Chromium; excluded from default local runs, opt in via `pytest -m browser`",
+    "ui_browser: launches the real Ouroboros web UI in host/direct mode; excluded from default local runs",
+    "ui_browser_docker: launches UI smoke checks against Docker runtime; excluded from default local runs",
+    "portable_detail: portable/build artifact detail checks; excluded from default local runs",
+    "serial: real subprocess / real port / mutable module-global test — run in a serial pass, excluded from the `-n auto` parallel pass via `-m 'not serial'` (see .github/workflows/ci.yml AND the hermetic commit gate ouroboros/preflight_runner.py, which runs the same two-pass split)",
+    "skill_smoke: real-network OuroborosHub official-skill install + review-flow smoke; excluded from default local runs, opt in via `pytest -m skill_smoke` (canonical lane description: docs/DEVELOPMENT.md 'Pytest marker lanes')",
+]
+
+[tool.setuptools]
+py-modules = ["server"]
+
+[tool.setuptools.packages.find]
+include = ["ouroboros*", "supervisor*", "web*"]
+
+[tool.setuptools.package-data]
+web = [
+    "*.html",
+    "*.js",
+    "*.css",
+    "*.png",
+    "*.jpg",
+    "modules/*.js",
+    "providers/*.svg",
+    "providers/*.png",
+    "providers/*.ico",
+]
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

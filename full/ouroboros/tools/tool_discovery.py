@@ -1,0 +1,132 @@
+"""Tool discovery meta-tools.
+
+Tasks start with the full selected capability envelope.  These handlers
+remain as a compatibility/discovery surface: they can confirm whether a named
+tool is registered, but they no longer grant delayed core capabilities.
+"""
+
+from __future__ import annotations
+import logging
+from typing import List, Optional, TYPE_CHECKING
+
+from ouroboros.tools.registry import ToolContext, ToolEntry
+from ouroboros.tool_policy import (
+    CAPABILITY_OMISSION_HEADER,
+    format_capability_omissions as _format_omissions,
+    list_non_core_tools as _policy_list_non_core,
+)
+
+if TYPE_CHECKING:
+    from ouroboros.tools.registry import ToolRegistry
+
+log = logging.getLogger(__name__)
+
+# Module-level registry reference — set by set_registry() after ToolRegistry is created.
+# loop.py also overrides these handlers with closures that have access to per-loop state
+# (e.g. the _enabled_extra_tools set); the module-level ref serves as a fallback for
+# any context where the tool is called without going through run_llm_loop.
+_registry: Optional["ToolRegistry"] = None
+
+
+def set_registry(reg: "ToolRegistry") -> None:
+    global _registry
+    _registry = reg
+
+
+def _list_available_tools(ctx: ToolContext, **kwargs) -> str:
+    if _registry is None:
+        return "Tool discovery not available in this context."
+    omissions = _registry.capability_omissions() if hasattr(_registry, "capability_omissions") else []
+    non_core = _policy_list_non_core(_registry)
+    # Exclude the meta-tools themselves from the listing
+    non_core = [t for t in non_core if t["name"] not in ("list_available_tools", "enable_tools")]
+    # The real registry policy is the visibility authority for every context:
+    # contract, credential, ephemeral, repair, and child filters apply without
+    # making workspace focus a second discovery policy.
+    non_core = [t for t in non_core if _registry.get_schema_by_name(t["name"]) is not None]
+    if not non_core:
+        if not omissions:
+            return "All tools are already in your active set."
+        lines = ["All currently discovered tools are already in your active set.", ""]
+        lines.extend(_format_omissions(omissions))
+        return "\n".join(lines)
+    lines = [f"**{len(non_core)} additional tools available** (use `enable_tools` to activate):\n"]
+    for t in non_core:
+        lines.append(f"- **{t['name']}**: {t['description'][:120]}")
+    if omissions:
+        lines.extend(_format_omissions(omissions, header="\n" + CAPABILITY_OMISSION_HEADER))
+    return "\n".join(lines)
+
+
+def _enable_tools(ctx: ToolContext, tools: str = "", **kwargs) -> str:
+    if _registry is None:
+        return "Tool enablement not available in this context."
+    names = [n.strip() for n in tools.split(",") if n.strip()]
+    if not names:
+        return "No tools specified."
+    found = []
+    hidden = []
+    not_found = []
+    for name in names:
+        schema = _registry.get_schema_by_name(name)
+        if schema:
+            found.append(f"{name}: {schema['function'].get('description', '')[:100]}")
+            continue
+        # F3 (2026-08-10 saga): a registered tool filtered by policy used to be
+        # reported as nonexistent — indistinguishable from a typo'd name.
+        reason = _registry.policy_hidden_reason(name) if hasattr(_registry, "policy_hidden_reason") else None
+        if reason:
+            hidden.append(f"{name} — {reason}")
+        else:
+            not_found.append(name)
+    parts = []
+    if found:
+        parts.append("✅ Tools are registered and already callable in the active envelope:\n" + "\n".join(f"  - {s}" for s in found))
+    if hidden:
+        parts.append("🚫 Hidden by policy (the tool exists but this task cannot use it):\n" + "\n".join(f"  - {s}" for s in hidden))
+    if not_found:
+        parts.append(f"❌ Not found: {', '.join(not_found)}")
+    return "\n".join(parts)
+
+
+def get_tools() -> List[ToolEntry]:
+    return [
+        ToolEntry(
+            name="list_available_tools",
+            schema={
+                "name": "list_available_tools",
+                "description": (
+                    "List tools omitted from the active envelope, if any. In the normal "
+                    "full-envelope model this usually reports that all tools are already active."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+            handler=_list_available_tools,
+        ),
+        ToolEntry(
+            name="enable_tools",
+            schema={
+                "name": "enable_tools",
+                "description": (
+                    "Compatibility check for named tools (comma-separated). Tasks start "
+                    "with the selected envelope active, so this confirms registration instead "
+                    "of granting delayed core tools."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tools": {
+                            "type": "string",
+                            "description": "Comma-separated tool names to enable",
+                        }
+                    },
+                    "required": ["tools"],
+                },
+            },
+            handler=_enable_tools,
+        ),
+    ]
